@@ -2,13 +2,14 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Upload, FileText, RotateCcw } from "lucide-react";
+import { ArrowLeft, Upload, FileText, RotateCcw, RefreshCw } from "lucide-react";
 import { apiFetch, apiUpload } from "@/lib/api";
 import { SessionDetail } from "@/lib/types";
 import { StatusBadge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { Button } from "@/components/ui/button";
 import { Dropzone } from "@/components/ui/dropzone";
+import { Modal } from "@/components/ui/modal";
 import { useSessionStatus } from "@/lib/hooks/use-session-status";
 
 interface Props {
@@ -19,6 +20,10 @@ export function SessionDetailView({ sessionId }: Props) {
   const { session, loading, refetch } = useSessionStatus(sessionId);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [showRegenerateModal, setShowRegenerateModal] = useState(false);
+  const [replaceMode, setReplaceMode] = useState<"reuse" | "replace">("reuse");
+  const [regenerateFiles, setRegenerateFiles] = useState<File[]>([]);
+  const [regenerating, setRegenerating] = useState(false);
 
   async function handleUpload(files: File[]) {
     setUploading(true);
@@ -37,6 +42,27 @@ export function SessionDetailView({ sessionId }: Props) {
     }
   }
 
+  async function handleRegenerate() {
+    setRegenerating(true);
+    try {
+      if (replaceMode === "replace" && regenerateFiles.length > 0) {
+        const formData = new FormData();
+        for (const f of regenerateFiles) {
+          formData.append("files", f);
+        }
+        await apiUpload(`/sessions/${sessionId}/upload`, formData);
+      }
+      await apiFetch(`/sessions/${sessionId}/regenerate`, { method: "POST" });
+      setShowRegenerateModal(false);
+      setRegenerateFiles([]);
+      await refetch();
+    } catch (err) {
+      console.error("Regenerate failed:", err);
+    } finally {
+      setRegenerating(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex justify-center py-20">
@@ -51,6 +77,7 @@ export function SessionDetailView({ sessionId }: Props) {
 
   const canUpload = session.status === "pending" || session.status === "error";
   const hasSummary = session.final_summary || session.raw_summary;
+  const canRegenerate = session.status === "ready" || session.status === "error";
 
   async function handleRetry() {
     await apiFetch(`/sessions/${sessionId}/retry`, { method: "POST" });
@@ -77,6 +104,12 @@ export function SessionDetailView({ sessionId }: Props) {
             </Button>
           </Link>
         )}
+        {canRegenerate && (
+          <Button variant="secondary" size="sm" onClick={() => setShowRegenerateModal(true)}>
+            <RefreshCw className="h-4 w-4" />
+            Gerar Novamente
+          </Button>
+        )}
         {session.status === "error" && (
           <Button variant="secondary" size="sm" onClick={handleRetry}>
             <RotateCcw className="h-4 w-4" />
@@ -85,6 +118,94 @@ export function SessionDetailView({ sessionId }: Props) {
         )}
         <StatusBadge status={session.status} />
       </div>
+
+      {/* Regenerate Modal */}
+      <Modal
+        open={showRegenerateModal}
+        onClose={() => { setShowRegenerateModal(false); setRegenerateFiles([]); }}
+        title="Gerar Novamente"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Deseja reprocessar a transcrição e o resumo desta sessão?
+          </p>
+
+          {/* Audio file reuse options */}
+          {session.audio_files && session.audio_files.length > 0 && (
+            <div className="space-y-3">
+              <div className="text-sm font-medium">Arquivos de áudio atuais:</div>
+              <div className="space-y-1">
+                {session.audio_files.map((af, i) => (
+                  <div key={i} className="flex items-center gap-2 text-sm rounded-lg border border-border px-3 py-1.5">
+                    <span className="flex-1 truncate">{af.filename}</span>
+                    <span className="text-muted-foreground text-xs">
+                      {(af.size / 1024 / 1024).toFixed(1)} MB
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <label className="flex items-center gap-3 rounded-lg border border-border p-3 cursor-pointer hover:bg-muted/50 transition-colors">
+                  <input
+                    type="radio"
+                    name="audio-option"
+                    checked={replaceMode === "reuse"}
+                    onChange={() => setReplaceMode("reuse")}
+                    className="accent-primary"
+                  />
+                  <div>
+                    <div className="text-sm font-medium">Reutilizar mesmos arquivos</div>
+                    <div className="text-xs text-muted-foreground">Reprocessar com os áudios já enviados</div>
+                  </div>
+                </label>
+                <label className="flex items-center gap-3 rounded-lg border border-border p-3 cursor-pointer hover:bg-muted/50 transition-colors">
+                  <input
+                    type="radio"
+                    name="audio-option"
+                    checked={replaceMode === "replace"}
+                    onChange={() => setReplaceMode("replace")}
+                    className="accent-primary"
+                  />
+                  <div>
+                    <div className="text-sm font-medium">Substituir arquivos</div>
+                    <div className="text-xs text-muted-foreground">Enviar novos áudios antes de reprocessar</div>
+                  </div>
+                </label>
+              </div>
+
+              {replaceMode === "replace" && (
+                <Dropzone onFiles={setRegenerateFiles} />
+              )}
+            </div>
+          )}
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button
+              variant="secondary"
+              onClick={() => { setShowRegenerateModal(false); setRegenerateFiles([]); }}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleRegenerate}
+              disabled={regenerating || (replaceMode === "replace" && regenerateFiles.length === 0)}
+            >
+              {regenerating ? (
+                <>
+                  <Spinner className="h-4 w-4" />
+                  Processando...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="h-4 w-4" />
+                  Gerar Novamente
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       {canUpload && (
         <div className="mb-6">

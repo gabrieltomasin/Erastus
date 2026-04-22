@@ -137,3 +137,29 @@ async def retry_session(session_id: int, db: AsyncSession = Depends(get_db)):
         process_session.delay(session_id)
 
     return await get_session(session_id, db)
+
+
+@router.post("/{session_id}/regenerate", response_model=SessionDetail)
+async def regenerate_session(session_id: int, db: AsyncSession = Depends(get_db)):
+    """Regenerate transcription and summary, optionally with replaced audio files."""
+    stmt = select(Session).where(Session.id == session_id)
+    result = await db.execute(stmt)
+    session = result.scalar_one_or_none()
+    if not session:
+        raise HTTPException(404, "Session not found")
+
+    if session.status in (SessionStatus.TRANSCRIBING, SessionStatus.SUMMARIZING):
+        raise HTTPException(400, "Session is currently being processed")
+
+    # Clear previous results
+    session.transcription = None
+    session.raw_summary = None
+    session.final_summary = None
+    session.error_message = None
+    session.status = SessionStatus.PENDING
+    await db.commit()
+
+    from app.workers.tasks import process_session
+    process_session.delay(session_id)
+
+    return await get_session(session_id, db)

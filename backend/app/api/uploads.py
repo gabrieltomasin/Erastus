@@ -29,7 +29,7 @@ async def upload_audio(
     if not session:
         raise HTTPException(404, "Session not found")
 
-    if session.status not in (SessionStatus.PENDING, SessionStatus.ERROR):
+    if session.status not in (SessionStatus.PENDING, SessionStatus.ERROR, SessionStatus.READY):
         raise HTTPException(400, f"Cannot upload to session in status: {session.status.value}")
 
     audio_files = session.audio_files or []
@@ -93,6 +93,13 @@ async def upload_audio(
             raise HTTPException(400, f"Unsupported file type: {ext}. Accepted: {', '.join(AUDIO_EXTENSIONS)}, .zip")
 
     session.audio_files = audio_files
+
+    # Clear previous results when replacing files
+    session.transcription = None
+    session.raw_summary = None
+    session.final_summary = None
+    session.error_message = None
+    session.status = SessionStatus.PENDING
 
     # Update status and dispatch processing task
     if audio_files:
