@@ -14,6 +14,7 @@ from app.schemas.campaign import (
     CampaignUpdate,
     SessionBrief,
 )
+from app.schemas.session import ReorderRequest
 
 router = APIRouter()
 
@@ -118,6 +119,29 @@ async def delete_campaign(campaign_id: int, db: AsyncSession = Depends(get_db)):
 
     await db.delete(campaign)
     await db.commit()
+
+
+@router.put("/{campaign_id}/sessions/reorder")
+async def reorder_sessions(
+    campaign_id: int, data: ReorderRequest, db: AsyncSession = Depends(get_db)
+):
+    campaign_stmt = select(Campaign).where(Campaign.id == campaign_id)
+    result = await db.execute(campaign_stmt)
+    if not result.scalar_one_or_none():
+        raise HTTPException(404, "Campaign not found")
+
+    stmt = select(Session).where(Session.campaign_id == campaign_id)
+    result = await db.execute(stmt)
+    sessions = {s.id: s for s in result.scalars().all()}
+
+    if set(data.session_ids) != set(sessions.keys()):
+        raise HTTPException(400, "Session IDs must match all sessions in the campaign")
+
+    for position, session_id in enumerate(data.session_ids):
+        sessions[session_id].position = position
+
+    await db.commit()
+    return {"ok": True}
 
 
 @router.post("/{campaign_id}/regenerate-context", response_model=CampaignDetail)

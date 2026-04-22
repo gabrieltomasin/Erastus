@@ -14,7 +14,7 @@ router = APIRouter()
 
 @router.get("", response_model=list[SessionOut])
 async def list_sessions(campaign_id: int | None = None, db: AsyncSession = Depends(get_db)):
-    stmt = select(Session).order_by(Session.session_number)
+    stmt = select(Session).order_by(Session.position, Session.session_number)
     if campaign_id is not None:
         stmt = stmt.where(Session.campaign_id == campaign_id)
     result = await db.execute(stmt)
@@ -30,10 +30,18 @@ async def create_session(data: SessionCreate, db: AsyncSession = Depends(get_db)
     result = await db.execute(max_stmt)
     max_num = result.scalar() or 0
 
+    # Auto-increment position within campaign
+    max_pos_stmt = select(func.max(Session.position)).where(
+        Session.campaign_id == data.campaign_id
+    )
+    pos_result = await db.execute(max_pos_stmt)
+    max_pos = pos_result.scalar() or 0
+
     session = Session(
         campaign_id=data.campaign_id,
         title=data.title,
         session_number=max_num + 1,
+        position=max_pos + 1,
         status=SessionStatus.PENDING,
     )
     db.add(session)

@@ -22,6 +22,7 @@ class Session(Base):
     campaign_id: Mapped[int] = mapped_column(ForeignKey("campaigns.id", ondelete="CASCADE"))
     title: Mapped[str] = mapped_column(String(255))
     session_number: Mapped[int] = mapped_column(Integer)
+    position: Mapped[int] = mapped_column(Integer, default=0)
     audio_files: Mapped[list | None] = mapped_column(JSON, default=list)
     transcription: Mapped[str | None] = mapped_column(Text)
     raw_summary: Mapped[str | None] = mapped_column(Text)

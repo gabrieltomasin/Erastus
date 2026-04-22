@@ -8,6 +8,10 @@ class SessionCreate(BaseModel):
     title: str
 
 
+class ReorderRequest(BaseModel):
+    session_ids: list[int]
+
+
 class SessionUpdate(BaseModel):
     title: str | None = None
     final_summary: str | None = None

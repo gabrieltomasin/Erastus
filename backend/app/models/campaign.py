@@ -23,5 +23,5 @@ class Campaign(Base):
     )
 
     sessions: Mapped[list["Session"]] = relationship(  # noqa: F821
-        back_populates="campaign", cascade="all, delete-orphan", order_by="Session.session_number"
+        back_populates="campaign", cascade="all, delete-orphan", order_by="Session.position"
     )
