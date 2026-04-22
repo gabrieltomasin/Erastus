@@ -67,7 +67,7 @@ export function SessionDetailView({ sessionId }: Props) {
           <ArrowLeft className="h-5 w-5" />
         </Link>
         <div className="flex-1">
-          <h1 className="text-2xl font-bold">#{session.session_number} — {session.title}</h1>
+          <h1 className="text-2xl font-bold">{session.title}</h1>
         </div>
         {hasSummary && (
           <Link href={`/sessions/${sessionId}/summary`}>

@@ -40,7 +40,7 @@ export function SummaryEditorView({ sessionId }: Props) {
         <div className="flex-1">
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <FileText className="h-6 w-6 text-primary" />
-            #{session.session_number} — {session.title}
+            {session.title}
           </h1>
         </div>
         <StatusBadge status={session.status} />
