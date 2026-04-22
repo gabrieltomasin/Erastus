@@ -16,5 +16,12 @@ COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/node_modules ./node_modules
 
+# Install nginx for API proxying
+RUN apk add --no-cache nginx
+
+COPY nginx.conf /etc/nginx/http.d/default.conf
+
 EXPOSE 3000
-CMD ["npm", "start"]
+COPY start.sh /start.sh
+RUN chmod +x /start.sh
+CMD ["/start.sh"]
