@@ -38,27 +38,56 @@ def transcribe_session(self, session_id: int) -> dict:
                 if not audio_files:
                     raise ValueError("No audio files found for session")
 
-                all_transcriptions = []
+                all_segments = []  # list of {start, end, text, file}
+                file_durations = []  # track duration per file
+
                 for i, af in enumerate(audio_files):
                     file_path = af.get("path", "")
                     if not Path(file_path).exists():
                         raise FileNotFoundError(f"Audio file not found: {file_path}")
 
-                    msg = f"Transcrevendo arquivo {i + 1}/{len(audio_files)}: {af.get('filename', 'unknown')}"
+                    filename = af.get("filename", f"Arquivo {i+1}")
+                    msg = f"Transcrevendo arquivo {i + 1}/{len(audio_files)}: {filename}"
                     await _log(db, session_id, "transcription", msg)
                     await db.commit()
 
                     publish_log(session_id, "transcription", msg)
-                    publish_progress(session_id, "transcription", i + 1, len(audio_files), af.get("filename", ""))
+                    publish_progress(session_id, "transcription", i + 1, len(audio_files), filename)
 
                     trans_result = transcriber.transcribe(file_path)
 
-                    header = f"--- {af.get('filename', f'Arquivo {i+1}')} ---"
-                    all_transcriptions.append(f"{header}\n{trans_result.text}")
+                    # Collect segments — timestamps are relative to each file's start
+                    # When multiple files are simultaneous recordings from different sources,
+                    # interleaving by timestamp reconstructs the real dialogue order
+                    for seg in trans_result.segments:
+                        all_segments.append({
+                            "start": seg["start"],
+                            "end": seg["end"],
+                            "text": seg["text"],
+                            "file": filename,
+                        })
 
+                    file_durations.append(trans_result.duration)
                     af["duration"] = round(trans_result.duration, 1)
 
-                full_transcription = "\n\n".join(all_transcriptions)
+                # Interleave segments by time across all files
+                all_segments.sort(key=lambda s: s["start"])
+
+                # Build interleaved transcription
+                if len(audio_files) > 1 and len(all_segments) > 0:
+                    lines = []
+                    for seg in all_segments:
+                        timestamp = f"[{_format_time(seg['start'])}]"
+                        lines.append(f"{timestamp} {seg['text']}")
+                    full_transcription = "\n".join(lines)
+                elif len(all_segments) > 0:
+                    # Single file — simple transcription with timestamps
+                    lines = []
+                    for seg in all_segments:
+                        lines.append(seg["text"])
+                    full_transcription = " ".join(lines)
+                else:
+                    full_transcription = trans_result.text
                 session.transcription = full_transcription
                 session.audio_files = audio_files
 
@@ -82,6 +111,16 @@ def transcribe_session(self, session_id: int) -> dict:
                 raise
 
     return asyncio.run(_run())
+
+
+def _format_time(seconds: float) -> str:
+    """Format seconds to HH:MM:SS or MM:SS."""
+    h = int(seconds // 3600)
+    m = int((seconds % 3600) // 60)
+    s = int(seconds % 60)
+    if h > 0:
+        return f"{h:02d}:{m:02d}:{s:02d}"
+    return f"{m:02d}:{s:02d}"
 
 
 async def _log(db, session_id: int, step: str, message: str, level: str = "info"):
