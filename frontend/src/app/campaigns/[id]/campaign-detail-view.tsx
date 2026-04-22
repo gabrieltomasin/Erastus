@@ -105,6 +105,14 @@ export function CampaignDetailView({ campaignId }: Props) {
     }
   }
 
+  function handleRename(sessionId: number, newTitle: string) {
+    if (!campaign) return;
+    setCampaign({
+      ...campaign,
+      sessions: campaign.sessions.map((s) => s.id === sessionId ? { ...s, title: newTitle } : s),
+    });
+  }
+
   if (loading) {
     return (
       <div className="flex justify-center py-20">
@@ -188,6 +196,7 @@ export function CampaignDetailView({ campaignId }: Props) {
                   key={session.id}
                   session={session}
                   onDelete={handleDeleteSession}
+                  onRename={handleRename}
                 />
               ))}
             </div>
