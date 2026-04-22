@@ -73,15 +73,26 @@ def transcribe_session(self, session_id: int) -> dict:
                 # Interleave segments by time across all files
                 all_segments.sort(key=lambda s: s["start"])
 
+                # Build speaker map (file index -> speaker_N)
+                speaker_map = {}
+                for i, af in enumerate(audio_files):
+                    speaker_map[af.get("filename", f"Arquivo {i+1}")] = f"speaker_{i+1}"
+
                 # Build interleaved transcription
                 if len(audio_files) > 1 and len(all_segments) > 0:
                     lines = []
+                    current_speaker = None
                     for seg in all_segments:
+                        speaker = speaker_map.get(seg["file"], "speaker_?")
                         timestamp = f"[{_format_time(seg['start'])}]"
-                        lines.append(f"{timestamp} {seg['text']}")
-                    full_transcription = "\n".join(lines)
+                        if speaker != current_speaker:
+                            lines.append(f"\n**{speaker}:** {timestamp} {seg['text']}")
+                            current_speaker = speaker
+                        else:
+                            lines.append(f"{timestamp} {seg['text']}")
+                    full_transcription = "\n".join(lines).strip()
                 elif len(all_segments) > 0:
-                    # Single file — simple transcription with timestamps
+                    # Single file — simple transcription
                     lines = []
                     for seg in all_segments:
                         lines.append(seg["text"])
