@@ -17,7 +17,7 @@ migration:
 # Development
 dev:
 	@echo "Starting backend..."
-	cd backend && uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+	cd backend && uvicorn app.main:app --reload --host :: --port 8000
 
 dev-frontend:
 	cd frontend && npm run dev
