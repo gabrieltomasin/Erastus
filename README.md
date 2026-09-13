@@ -107,7 +107,7 @@ All settings are in `.env` (see `.env.example`):
 | `LLM_API_BASE_URL` | OpenAI-compatible API base URL | — |
 | `LLM_API_KEY` | API key | — |
 | `LLM_MODEL` | Model name | — |
-| `LLM_MAX_TOKENS` | Max output tokens | `4096` |
+| `LLM_MAX_TOKENS` | Max output tokens | `32768` |
 | `LLM_TEMPERATURE` | Generation temperature | `0.3` |
 | `MAX_AUDIO_SIZE_MB` | Upload size limit | `2048` |
 | `NEXT_PUBLIC_API_URL` | Backend URL used by the frontend | `http://localhost:8000` |
