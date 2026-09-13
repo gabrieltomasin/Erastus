@@ -12,7 +12,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="RPG Session Summary",
+    title="Erastus",
     version="0.1.0",
     lifespan=lifespan,
 )

@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "RPG Session Summary",
+  title: "Erastus",
   description: "Transcribe and summarize your RPG sessions with AI",
 };
 
