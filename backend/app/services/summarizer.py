@@ -88,7 +88,18 @@ class LLMClient:
             timeout=120.0,
         )
         resp.raise_for_status()
-        return resp.json()["choices"][0]["message"]["content"]
+        choice = resp.json()["choices"][0]
+        content = choice["message"].get("content") or ""
+        # Reasoning models (e.g. DeepSeek) spend the max_tokens budget on
+        # reasoning_content first; if it runs out, content comes back empty.
+        if not content.strip():
+            finish_reason = choice.get("finish_reason")
+            raise RuntimeError(
+                f"LLM returned empty content (finish_reason={finish_reason}). "
+                "If finish_reason is 'length', the reasoning consumed the whole "
+                "max_tokens budget — increase LLM_MAX_TOKENS."
+            )
+        return content
 
     def summarize(
         self,
