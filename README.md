@@ -33,6 +33,14 @@ Upload audio recordings of your RPG sessions, automatically transcribe them with
 
 ### Setup
 
+**One line** (clones, configures, builds, migrates, and starts everything):
+```bash
+curl -fsSL https://raw.githubusercontent.com/gabrieltomasin/erastus/main/scripts/install.sh | sh
+```
+When it finishes, add your LLM credentials to `erastus/.env` and run `cd erastus && docker compose up -d`.
+
+Or manually:
+
 1. Clone and configure:
 ```bash
 cp .env.example .env
