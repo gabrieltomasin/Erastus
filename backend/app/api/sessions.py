@@ -5,6 +5,7 @@ from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 
 from app.database import get_db
+from app.models.campaign import Campaign
 from app.models.session import Session, SessionStatus
 from app.schemas.processing_log import ProcessingLogOut
 from app.schemas.session import SessionCreate, SessionDetail, SessionOut, SessionUpdate
@@ -23,6 +24,9 @@ async def list_sessions(campaign_id: int | None = None, db: AsyncSession = Depen
 
 @router.post("", response_model=SessionOut, status_code=201)
 async def create_session(data: SessionCreate, db: AsyncSession = Depends(get_db)):
+    if not await db.get(Campaign, data.campaign_id):
+        raise HTTPException(404, "Campaign not found")
+
     # Auto-increment session_number within campaign
     max_stmt = select(func.max(Session.session_number)).where(
         Session.campaign_id == data.campaign_id

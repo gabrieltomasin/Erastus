@@ -2,6 +2,7 @@ import logging
 from pathlib import Path
 
 from app.services.transcriber import Transcriber
+from app.services.transcript_builder import build_transcription
 from app.workers.celery_app import celery_app
 from app.workers.events import publish_status, publish_log, publish_progress
 
@@ -33,7 +34,10 @@ def transcribe_session(self, session_id: int) -> dict:
                 publish_log(session_id, "transcription", "Iniciando transcrição...")
 
                 transcriber = Transcriber()
-                audio_files = session.audio_files or []
+                # Copy before mutating entries (duration recording): mutating
+                # the loaded JSON list in place poisons SQLAlchemy's change
+                # detection, so the update would silently not persist
+                audio_files = list(session.audio_files or [])
 
                 if not audio_files:
                     raise ValueError("No audio files found for session")
@@ -70,36 +74,13 @@ def transcribe_session(self, session_id: int) -> dict:
                     file_durations.append(trans_result.duration)
                     af["duration"] = round(trans_result.duration, 1)
 
-                # Interleave segments by time across all files
-                all_segments.sort(key=lambda s: s["start"])
-
-                # Build speaker map (file index -> speaker_N)
-                speaker_map = {}
-                for i, af in enumerate(audio_files):
-                    speaker_map[af.get("filename", f"Arquivo {i+1}")] = f"speaker_{i+1}"
-
-                # Build interleaved transcription
-                if len(audio_files) > 1 and len(all_segments) > 0:
-                    lines = []
-                    current_speaker = None
-                    for seg in all_segments:
-                        speaker = speaker_map.get(seg["file"], "speaker_?")
-                        timestamp = f"[{_format_time(seg['start'])}]"
-                        if speaker != current_speaker:
-                            lines.append(f"\n**{speaker}:** {timestamp} {seg['text']}")
-                            current_speaker = speaker
-                        else:
-                            lines.append(f"{timestamp} {seg['text']}")
-                    full_transcription = "\n".join(lines).strip()
-                elif len(all_segments) > 0:
-                    # Single file — simple transcription
-                    lines = []
-                    for seg in all_segments:
-                        lines.append(seg["text"])
-                    full_transcription = " ".join(lines)
-                else:
+                # Interleave segments by time across all files and build
+                # the speaker-labeled transcription
+                full_transcription = build_transcription(all_segments, audio_files)
+                if not full_transcription:
                     full_transcription = trans_result.text
                 session.transcription = full_transcription
+                # audio_files is a fresh copy, so this registers as a change
                 session.audio_files = audio_files
 
                 msg = f"Transcrição completa: {len(full_transcription)} caracteres"
@@ -122,16 +103,6 @@ def transcribe_session(self, session_id: int) -> dict:
                 raise
 
     return asyncio.run(_run())
-
-
-def _format_time(seconds: float) -> str:
-    """Format seconds to HH:MM:SS or MM:SS."""
-    h = int(seconds // 3600)
-    m = int((seconds % 3600) // 60)
-    s = int(seconds % 60)
-    if h > 0:
-        return f"{h:02d}:{m:02d}:{s:02d}"
-    return f"{m:02d}:{s:02d}"
 
 
 async def _log(db, session_id: int, step: str, message: str, level: str = "info"):

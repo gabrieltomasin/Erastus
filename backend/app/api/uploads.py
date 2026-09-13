@@ -32,7 +32,10 @@ async def upload_audio(
     if session.status not in (SessionStatus.PENDING, SessionStatus.ERROR, SessionStatus.READY):
         raise HTTPException(400, f"Cannot upload to session in status: {session.status.value}")
 
-    audio_files = session.audio_files or []
+    # Copy before appending: mutating the loaded JSON list in place poisons
+    # SQLAlchemy's change detection (the committed state references the same
+    # object), which silently drops appended files on later uploads
+    audio_files = list(session.audio_files or [])
     session_dir = storage.get_session_dir(session_id)
 
     for upload in files:
@@ -92,6 +95,7 @@ async def upload_audio(
         else:
             raise HTTPException(400, f"Unsupported file type: {ext}. Accepted: {', '.join(AUDIO_EXTENSIONS)}, .zip")
 
+    # audio_files is a fresh copy, so this assignment registers as a change
     session.audio_files = audio_files
 
     # Clear previous results when replacing files
